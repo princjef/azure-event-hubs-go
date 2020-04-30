@@ -51,7 +51,7 @@ func (em *entityManager) startSpanFromContext(ctx context.Context, operationName
 // ApplyComponentInfo applies eventhub library and network info to the span
 func ApplyComponentInfo(span tab.Spanner) {
 	span.AddAttributes(
-		tab.StringAttribute("component", "github.com/Azure/azure-event-hubs-go"),
+		tab.StringAttribute("component", "github.com/princjef/azure-event-hubs-go"),
 		tab.StringAttribute("version", Version))
 	applyNetworkInfo(span)
 }

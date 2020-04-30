@@ -30,9 +30,8 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-storage-blob-go/azblob"
+	"github.com/princjef/azure-event-hubs-go/v3/internal/test"
 	"github.com/stretchr/testify/suite"
-
-	"github.com/Azure/azure-event-hubs-go/v3/internal/test"
 )
 
 type (

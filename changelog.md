@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.1`
+- fix version and module path
+
 ## `v3.3.0`
 - add support for sending and receiving custom annotations
 

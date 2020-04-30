@@ -44,9 +44,8 @@ import (
 	"github.com/Azure/go-autorest/autorest/date"
 	"github.com/Azure/go-autorest/autorest/to"
 	"github.com/devigned/tab"
-
-	"github.com/Azure/azure-event-hubs-go/v3/atom"
-	"github.com/Azure/azure-event-hubs-go/v3/persist"
+	"github.com/princjef/azure-event-hubs-go/v3/atom"
+	"github.com/princjef/azure-event-hubs-go/v3/persist"
 )
 
 const (
