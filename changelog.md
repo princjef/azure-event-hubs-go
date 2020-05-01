@@ -1,5 +1,8 @@
 # Change Log
 
+## `v3.3.2`
+- don't allow partition key to overwrite annotations
+
 ## `v3.3.1`
 - fix version and module path
 
