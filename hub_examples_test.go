@@ -8,7 +8,7 @@ import (
 
 	"github.com/joho/godotenv"
 
-	"github.com/Azure/azure-event-hubs-go/v3"
+	"github.com/princjef/azure-event-hubs-go/v3"
 )
 
 func init() {
