@@ -25,11 +25,11 @@ package eventhub
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/Azure/go-amqp"
-	"github.com/mitchellh/mapstructure"
 
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
 )
@@ -54,23 +54,23 @@ type (
 
 	// SystemProperties are used to store properties that are set by the system.
 	SystemProperties struct {
-		SequenceNumber *int64     `mapstructure:"x-opt-sequence-number"` // unique sequence number of the message
-		EnqueuedTime   *time.Time `mapstructure:"x-opt-enqueued-time"`   // time the message landed in the message queue
-		Offset         *int64     `mapstructure:"x-opt-offset"`
-		PartitionID    *int16     `mapstructure:"x-opt-partition-id"` // This value will always be nil. For information related to the event's partition refer to the PartitionKey field in this type
-		PartitionKey   *string    `mapstructure:"x-opt-partition-key"`
+		SequenceNumber *int64     // unique sequence number of the message
+		EnqueuedTime   *time.Time // time the message landed in the message queue
+		Offset         *int64
+		PartitionID    *int16 // This value will always be nil. For information related to the event's partition refer to the PartitionKey field in this type
+		PartitionKey   *string
 		// Nil for messages other than from Azure IoT Hub. deviceId of the device that sent the message.
-		IoTHubDeviceConnectionID *string `mapstructure:"iothub-connection-device-id"`
+		IoTHubDeviceConnectionID *string
 		// Nil for messages other than from Azure IoT Hub. Used to distinguish devices with the same deviceId, when they have been deleted and re-created.
-		IoTHubAuthGenerationID *string `mapstructure:"iothub-connection-auth-generation-id"`
+		IoTHubAuthGenerationID *string
 		// Nil for messages other than from Azure IoT Hub. Contains information about the authentication method used to authenticate the device sending the message.
-		IoTHubConnectionAuthMethod *string `mapstructure:"iothub-connection-auth-method"`
+		IoTHubConnectionAuthMethod *string
 		// Nil for messages other than from Azure IoT Hub. moduleId of the device that sent the message.
-		IoTHubConnectionModuleID *string `mapstructure:"iothub-connection-module-id"`
+		IoTHubConnectionModuleID *string
 		// Nil for messages other than from Azure IoT Hub. The time the Device-to-Cloud message was received by IoT Hub.
-		IoTHubEnqueuedTime *time.Time `mapstructure:"iothub-enqueuedtime"`
+		IoTHubEnqueuedTime *time.Time
 		// Raw annotations provided on the message. Includes any additional System Properties that are not explicitly mapped.
-		Annotations map[string]interface{} `mapstructure:"-"`
+		Annotations map[string]interface{}
 	}
 
 	mapStructureTag struct {
@@ -78,6 +78,182 @@ type (
 		PersistEmpty bool
 	}
 )
+
+func (s *SystemProperties) fromAnnotations(annotations amqp.Annotations) error {
+	// Take all string-keyed annotations because the protocol reserves all
+	// numeric keys for itself and there are no numeric keys defined in the
+	// protocol today:
+	//
+	//	http://www.amqp.org/sites/amqp.org/files/amqp.pdf (section 3.2.10)
+	//
+	// This approach is also consistent with the behavior of .NET:
+	//
+	//	https://docs.microsoft.com/en-us/dotnet/api/azure.messaging.eventhubs.eventdata.systemproperties?view=azure-dotnet#Azure_Messaging_EventHubs_EventData_SystemProperties
+	s.Annotations = make(map[string]interface{}, len(annotations))
+	for key, val := range annotations {
+		if strKey, ok := key.(string); ok {
+			s.Annotations[strKey] = val
+		}
+	}
+
+	for k, v := range s.Annotations {
+		switch k {
+		case "x-opt-sequence-number":
+			val, err := toInt64(v)
+			if err != nil {
+				return err
+			}
+
+			s.SequenceNumber = &val
+		case "x-opt-enqueued-time":
+			val, err := toTime(v)
+			if err != nil {
+				return err
+			}
+
+			s.EnqueuedTime = &val
+		case "x-opt-offset":
+			val, err := toInt64(v)
+			if err != nil {
+				return err
+			}
+
+			s.Offset = &val
+		case "x-opt-partition-id":
+			val, err := toInt16(v)
+			if err != nil {
+				return err
+			}
+
+			s.PartitionID = &val
+		case "x-opt-partition-key":
+			val, err := toString(v)
+			if err != nil {
+				return err
+			}
+
+			s.PartitionKey = &val
+		case "iothub-connection-device-id":
+			val, err := toString(v)
+			if err != nil {
+				return err
+			}
+
+			s.IoTHubDeviceConnectionID = &val
+		case "iothub-connection-auth-generation-id":
+			val, err := toString(v)
+			if err != nil {
+				return err
+			}
+
+			s.IoTHubAuthGenerationID = &val
+		case "iothub-connection-auth-method":
+			val, err := toString(v)
+			if err != nil {
+				return err
+			}
+
+			s.IoTHubConnectionAuthMethod = &val
+		case "iothub-connection-module-id":
+			val, err := toString(v)
+			if err != nil {
+				return err
+			}
+
+			s.IoTHubConnectionModuleID = &val
+		case "iothub-enqueuedtime":
+			val, err := toTime(v)
+			if err != nil {
+				return err
+			}
+
+			s.IoTHubEnqueuedTime = &val
+		}
+	}
+
+	return nil
+}
+
+func toInt64(value interface{}) (int64, error) {
+	switch v := value.(type) {
+	case int:
+		return int64(v), nil
+	case int8:
+		return int64(v), nil
+	case int16:
+		return int64(v), nil
+	case int32:
+		return int64(v), nil
+	case int64:
+		return int64(v), nil
+	case uint:
+		return int64(v), nil
+	case uint8:
+		return int64(v), nil
+	case uint16:
+		return int64(v), nil
+	case uint32:
+		return int64(v), nil
+	case uint64:
+		return int64(v), nil
+	case string:
+		return strconv.ParseInt(v, 10, 64)
+	default:
+		return 0, fmt.Errorf("azure-event-hubs-go: cannot parse %T into int64", value)
+	}
+}
+
+func toInt16(value interface{}) (int16, error) {
+	switch v := value.(type) {
+	case int:
+		return int16(v), nil
+	case int8:
+		return int16(v), nil
+	case int16:
+		return int16(v), nil
+	case int32:
+		return int16(v), nil
+	case int64:
+		return int16(v), nil
+	case uint:
+		return int16(v), nil
+	case uint8:
+		return int16(v), nil
+	case uint16:
+		return int16(v), nil
+	case uint32:
+		return int16(v), nil
+	case uint64:
+		return int16(v), nil
+	case string:
+		parsed, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			return 0, err
+		}
+
+		return int16(parsed), nil
+	default:
+		return 0, fmt.Errorf("azure-event-hubs-go: cannot parse %T into int16", value)
+	}
+}
+
+func toString(value interface{}) (string, error) {
+	switch v := value.(type) {
+	case string:
+		return v, nil
+	default:
+		return "", fmt.Errorf("azure-event-hubs-go: cannot parse %T into string", value)
+	}
+}
+
+func toTime(value interface{}) (time.Time, error) {
+	switch v := value.(type) {
+	case string:
+		return time.Parse(time.RFC3339, v)
+	default:
+		return time.Time{}, fmt.Errorf("azure-event-hubs-go: cannot parse %T into time.Time", value)
+	}
+}
 
 // NewEventFromString builds an Event from a string message
 func NewEventFromString(message string) *Event {
@@ -199,31 +375,11 @@ func newEvent(data []byte, msg *amqp.Message) (*Event, error) {
 			}
 		}
 
-		if err := mapstructure.WeakDecode(msg.Annotations, &event.SystemProperties); err != nil {
+		event.SystemProperties = new(SystemProperties)
+
+		if err := event.SystemProperties.fromAnnotations(msg.Annotations); err != nil {
 			fmt.Println("error decoding...", err)
 			return event, err
-		}
-
-		// If we didn't populate any system properties, set up the struct so we
-		// can put the annotations in it
-		if event.SystemProperties == nil {
-			event.SystemProperties = new(SystemProperties)
-		}
-
-		// Take all string-keyed annotations because the protocol reserves all
-		// numeric keys for itself and there are no numeric keys defined in the
-		// protocol today:
-		//
-		//	http://www.amqp.org/sites/amqp.org/files/amqp.pdf (section 3.2.10)
-		//
-		// This approach is also consistent with the behavior of .NET:
-		//
-		//	https://docs.microsoft.com/en-us/dotnet/api/azure.messaging.eventhubs.eventdata.systemproperties?view=azure-dotnet#Azure_Messaging_EventHubs_EventData_SystemProperties
-		event.SystemProperties.Annotations = make(map[string]interface{})
-		for key, val := range msg.Annotations {
-			if s, ok := key.(string); ok {
-				event.SystemProperties.Annotations[s] = val
-			}
 		}
 	}
 
